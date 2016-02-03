@@ -1,0 +1,3 @@
+#! /bin/bash
+BASE_DIR='/home/hedgehog/media/cerebrum/DAIICT/Thesis/Experiments'
+TEMP_DIR='/home/hedgehog/temp'
