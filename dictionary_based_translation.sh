@@ -1,31 +1,28 @@
 #! /bin/bash
-echo $1;
-echo $2;
+#echo $1;
+#echo $2;
 source ./config.file
 year="merged";
 language_string="hi_gu_bn_ta_mr_te_en";
 
-if [ "$1" == "$2" ];
-then
-	echo "srce and target language can not be same."
-elif [[ "$language_string" =~ $1  && "$language_string" =~ $2 ]]
-then
-mkdir /home/hedgehog/temp 2> /dev/null
-TEMP="/home/hedgehog/temp";
-TOPIC_FILE=$TEMP"/topics.txt";
-RESULT_TOPIC=$TEMP"/res_topics.txt";
-INITIAL_TOPIC=$TEMP"/initial_topics.txt";
-TEMP_FILE=$TEMP"/temp.txt";
+
+
+TOPIC_FILE="$TEMP_DIR/topics.txt";
+RESULT_TOPIC="$TEMP_DIR/res_topics.txt";
+INITIAL_TOPIC="$TEMP_DIR/initial_topics.txt";
+TEMP_FILE="$TEMP_DIR/temp.txt";
 B_TERRIER_HOME="$BASE_DIR/$2_terrier-4.0";
-SOURCE_FILE=$B_TERRIER_HOME"/Queries/$year/mono/$1_$1.topics.txt";
-ORIGINAL_FILE=$B_TERRIER_HOME"/Queries/$year/mono/$2_$2.topics.txt";
-TARGET_FILE=$B_TERRIER_HOME"/Queries/$year/dictionary/$1_$2.topics.txt";
+SOURCE_FILE="$B_TERRIER_HOME/Queries/$year/mono/$1_$1.topics.txt";
+TARGET_FILE="$B_TERRIER_HOME/Queries/$year/dictionary/$1_$2.topics.txt";
+ORIGINAL_FILE="$B_TERRIER_HOME/Queries/$year/mono/$2_$2.topics.txt";
 DICTIONARY_FILE="$BASE_DIR/Tools/Dictionaries/$1To$2Translation.txt"
-STOPWORDS_FILE="/home/hedgehog/media/cerebrum/DAIICT/Thesis/Experiments/Tools/CLIA/$1-lib/stopwords_hi.txt"
+STOPWORDS_FILE="$BASE_DIR/Tools/CLIA/$1-lib/stopwords_hi.txt"
 #echo "cppying $ORIGINAL_FILE into $TARGET_FILE";
 
-function generate_meaning {
+mkdir $TEMP_DIR 2> /dev/null
+
 	#word=$1
+function generate_meaning {
 	# first dictionary lookup
 	meaning="`dictionary_lookup $1`"
 	if [ "$meaning" != "" ]
@@ -59,13 +56,72 @@ function dictionary_lookup {
 function stem_word {
 	#word=$1
 	#echo "%%% stemming $1 %%%%"
-	printf "$1" | java -jar "/home/hedgehog/media/cerebrum/DAIICT/Thesis/Experiments/Tools/HiStem.jar"
+	printf "$1" | java -jar "/home/hedgehog/media/cerebrum/DAIICT/Thesis/Experiments/Tools/hiStem.jar"
 
 }
 
+
+function transliterate_using_google {
+
+#cat $1
+TEMP_TARGET_FILE=$1
+cat $1 | sed 's! !\n!g'  | grep "transliterate_" | sed "s/transliterate_//g" > $TEMP_DIR/"source_translitrate.txt"
+touch $TEMP_DIR/"target_translitrate.txt"
+echo "mannually translate  $TEMP_DIR/"source_translitrate.txt into $TEMP_DIR/"target_translitrate.txt using google"
+echo "press Y to continue and N to exit:"
+read response
+
+if [ "$response" == "Y" ];
+	 then
+	 for ((x=1; x<=`cat $TEMP_DIR/source_translitrate.txt | wc -l` ; x++))
+	 do
+	 	initial_topic="transliterate_"`awk "NR==$x" $TEMP_DIR/source_translitrate.txt`;
+	 	target_topic=`awk "NR==$x" $TEMP_DIR/target_translitrate.txt`;
+	 #	echo $x;
+	 #	echo $target_topic;
+	 	cat $TEMP_TARGET_FILE |   sed "s|$initial_topic|$target_topic|g" > $TEMP_FILE
+	 	mv $TEMP_FILE $TEMP_TARGET_FILE;
+	 	#clear temporary files
+	 done
+	 	echo "replaced transliterated text "
+		cat $TEMP_TARGET_FILE
+		#mv $TEMP_TARGET_FILE $TARGET_FILE
+		#make transliterated topics replacement ready
+		for ((x=1; x<=100; x++))
+		do
+			query=`awk "NR==$x" $TEMP_TARGET_FILE`;
+			echo "<title>"$query"</title>" >> $TEMP_FILE;
+		done
+		mv $TEMP_FILE $RESULT_TOPIC;
+
+
+		# putting translated queries back to new query file
+		for ((x=1; x<=100 ; x++))
+		do
+			initial_topic="`awk "NR==$x" $INITIAL_TOPIC`";
+			target_topic="`awk "NR==$x" $RESULT_TOPIC`";
+		#	echo $x;
+		#	echo $target_topic;
+			cat $TARGET_FILE |   sed "s|$initial_topic|$target_topic|g" > $TEMP_FILE
+			mv $TEMP_FILE $TARGET_FILE;
+		done
+			#clear temporary files
+
+else
+		echo " exit "
+fi
+}
+
+
+if [ "$1" == "$2" ];
+then
+	echo "srce and target language can not be same."
+elif [[ "$language_string" =~ $1  && "$language_string" =~ $2 ]]
+then
+mkdir /home/hedgehog/temp 2> /dev/null
 cp $ORIGINAL_FILE $TARGET_FILE ;
 
-touch $TEMP"/topics.txt";
+touch $TEMP_DIR"/topics.txt";
 #set up initial topics for replacement
 cat $ORIGINAL_FILE | grep "<title>" > $INITIAL_TOPIC
 
@@ -78,7 +134,7 @@ grep "<title>" $SOURCE_FILE | sed 's/<title>//g' | sed 's^</title>^^g' > $TOPIC_
 for ((x=1; x<=100; x++))
 do
 	query=`awk "NR==$x" $TOPIC_FILE`;
-	echo "*** $query ***";
+#	echo "*** $query ***";
   OLDIFS=$IFS;
   IFS=' ';
   for word in `printf "$query"`;
@@ -97,8 +153,11 @@ do
   done;
   IFS=$OLDIFS
 	printf "\n"
-done
-rm -Rf $TEMP
+done > $TEMP_DIR/interm_target.txt
+#cat $TEMP_DIR/interm_target.txt
+
+transliterate_using_google $TEMP_DIR/interm_target.txt
 else
 	echo "invalid language chosen";
 fi
+rm -Rf $TEMP_DIR
