@@ -56,6 +56,7 @@ function dictionary_lookup {
 function stem_word {
 	#word=$1
 	#echo "%%% stemming $1 %%%%"
+	############################## WARNING: HARD CODE AHEAD #############################################
 	printf "$1" | java -jar "/home/hedgehog/media/cerebrum/DAIICT/Thesis/Experiments/Tools/hiStem.jar"
 
 }
