@@ -3,24 +3,29 @@
 #echo $2;
 source ./config.file
 year="merged";
+source_engine="mono" #mono or qe
+engine="naive_dictionary"
 language_string="hi_gu_bn_ta_mr_te_en";
 
-
+sl=$1
+tl=$2
 
 TOPIC_FILE="$TEMP_DIR/topics.txt";
 RESULT_TOPIC="$TEMP_DIR/res_topics.txt";
 INITIAL_TOPIC="$TEMP_DIR/initial_topics.txt";
 TEMP_FILE="$TEMP_DIR/temp.txt";
-B_TERRIER_HOME="$BASE_DIR/$2_terrier-4.0";
-SOURCE_FILE="$B_TERRIER_HOME/Queries/$year/mono/$1_$1.topics.txt";
-TARGET_FILE="$B_TERRIER_HOME/Queries/$year/dictionary/$1_$2.topics.txt";
-ORIGINAL_FILE="$B_TERRIER_HOME/Queries/$year/mono/$2_$2.topics.txt";
+S_TERRIER_HOME="$BASE_DIR/$1_terrier-4.0";
+T_TERRIER_HOME="$BASE_DIR/$2_terrier-4.0";
+SOURCE_FILE="$S_TERRIER_HOME/Queries/$year/$source_engine/$1_$1.topics.txt";
+TARGET_FILE="$T_TERRIER_HOME/Queries/$year/$engine/$1_$2.topics.txt";
+ORIGINAL_FILE="$T_TERRIER_HOME/Queries/$year/mono/$2_$2.topics.txt";
 DICTIONARY_FILE="$BASE_DIR/Tools/Dictionaries/$1To$2Translation.txt"
-STOPWORDS_FILE="$BASE_DIR/Tools/CLIA/$1-lib/stopwords_hi.txt"
+#NEW_DICTIONARY_FILE="$BASE_DIR/Tools/Dictionaries/UW_Hindi_Dict_20131003/UW-Hindi_Dict-20131003.txt"
+STOPWORDS_FILE="$BASE_DIR/Tools/CLIA/$1-lib/stopwords_$1.txt"
 #echo "cppying $ORIGINAL_FILE into $TARGET_FILE";
 
 mkdir $TEMP_DIR 2> /dev/null
-
+mkdir -p "$T_TERRIER_HOME/Queries/$year/$engine" 2> /dev/null
 	#word=$1
 function generate_meaning {
 	# first dictionary lookup
@@ -50,15 +55,24 @@ function is_stop_word {
 
 function dictionary_lookup {
                    #echo "meaning of "$1
-                   cat $DICTIONARY_FILE | grep "^$1\s" | cut -f2 | sed 'N;s/\n/ /'
+                   #cat $DICTIONARY_FILE | grep "^$1\s" | cut -f2 | sed 'N;s/\n/, /'
+									 cat $DICTIONARY_FILE | grep "^$1\s[a-z]*$" | cut -f2 | xargs echo -n | sed 's/ /, /g' | tr -d '.'
                }
+
 
 function stem_word {
 	#word=$1
 	#echo "%%% stemming $1 %%%%"
 	############################## WARNING: HARD CODE AHEAD #############################################
+	if [ "$sl"=="hi" ]; then
 	printf "$1" | java -jar "/home/hedgehog/media/cerebrum/DAIICT/Thesis/Experiments/Tools/hiStem.jar"
-
+elif [ "$sl"=="te" ]; then
+		printf "$1" | java -jar "/home/hedgehog/media/cerebrum/DAIICT/Thesis/Experiments/Tools/teStem.jar"
+elif [ "$sl"=="bn" ]; then
+		printf "$1" | java -jar "/home/hedgehog/media/cerebrum/DAIICT/Thesis/Experiments/Tools/bnStem.jar"
+elif [ "$sl"=="hi" ]; then
+		printf "$1" | java -jar "/home/hedgehog/media/cerebrum/DAIICT/Thesis/Experiments/Tools/hiStem.jar"
+	fi
 }
 
 
@@ -67,6 +81,7 @@ function transliterate_using_google {
 #cat $1
 TEMP_TARGET_FILE=$1
 cat $1 | sed 's! !\n!g'  | grep "transliterate_" | sed "s/transliterate_//g" > $TEMP_DIR/"source_translitrate.txt"
+cat $TEMP_DIR/"source_translitrate.txt" | xclip -selection clipboard
 touch $TEMP_DIR/"target_translitrate.txt"
 echo "mannually translate  $TEMP_DIR/"source_translitrate.txt into $TEMP_DIR/"target_translitrate.txt using google"
 echo "press Y to continue and N to exit:"
@@ -74,10 +89,11 @@ read response
 
 if [ "$response" == "Y" ];
 	 then
+	 xclip -o > $TEMP_DIR/target_translitrate.txt
 	 for ((x=1; x<=`cat $TEMP_DIR/source_translitrate.txt | wc -l` ; x++))
 	 do
-	 	initial_topic="transliterate_"`awk "NR==$x" $TEMP_DIR/source_translitrate.txt`;
-	 	target_topic=`awk "NR==$x" $TEMP_DIR/target_translitrate.txt`;
+	 	initial_topic="transliterate_"`awk "NR==$x" $TEMP_DIR/source_translitrate.txt`" ";
+	 	target_topic=`awk "NR==$x" $TEMP_DIR/target_translitrate.txt | tr -d '.'`" ";
 	 #	echo $x;
 	 #	echo $target_topic;
 	 	cat $TEMP_TARGET_FILE |   sed "s|$initial_topic|$target_topic|g" > $TEMP_FILE
@@ -119,7 +135,7 @@ then
 	echo "srce and target language can not be same."
 elif [[ "$language_string" =~ $1  && "$language_string" =~ $2 ]]
 then
-mkdir /home/hedgehog/temp 2> /dev/null
+mkdir $TEMP_DIR 2> /dev/null
 cp $ORIGINAL_FILE $TARGET_FILE ;
 
 touch $TEMP_DIR"/topics.txt";
@@ -154,7 +170,7 @@ do
   done;
   IFS=$OLDIFS
 	printf "\n"
-done > $TEMP_DIR/interm_target.txt
+done  > $TEMP_DIR/interm_target.txt
 #cat $TEMP_DIR/interm_target.txt
 
 transliterate_using_google $TEMP_DIR/interm_target.txt
